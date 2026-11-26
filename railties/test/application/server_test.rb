@@ -41,7 +41,7 @@ module ApplicationTests
     end
 
     # DIAGNOSTIC ONLY, DO NOT MERGE.
-    20.times do |i|
+    100.times do |i|
       test "restart diag #{i}" do
         skip "PTY unavailable" unless available_pty?
 
@@ -56,10 +56,13 @@ module ApplicationTests
         # Smallest step between distinct mtimes seen while touching for 0.3 s.
         probe = "#{app_path}/tmp/diag_probe.txt"
         mtimes = []
+        lags = []
         deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 0.3
         while Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
+          before = Time.now
           FileUtils.touch(probe)
           mtimes << File.stat(probe).mtime
+          lags << (before - mtimes.last) * 1000
         end
         mtimes.uniq!
         step_ms = mtimes.each_cons(2).map { |a, b| (b - a) * 1000 }.min
@@ -86,6 +89,7 @@ module ApplicationTests
 
           $stderr.puts "RESTART-DIAG #{i} kernel=#{`uname -r`.strip} ruby=#{RUBY_VERSION} " \
             "fs=#{`stat -f -c %T #{app_path}/tmp`.strip} step_ms=#{step_ms&.round(3).inspect} " \
+            "max_lag_ms=#{lags.max.round(3)} " \
             "orig=#{ns[orig]} seen=#{ns[seen]} touched=#{ns[touched]} mtime=#{ns[mtime]} " \
             "touched_minus_orig_ms=#{((touched - orig) * 1000).round(3)} " \
             "seen_to_touched_ms=#{((touched - seen) * 1000).round(3)} " \
